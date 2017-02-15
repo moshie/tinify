@@ -1,0 +1,10 @@
+# ide
+/.idea
+
+# build
+/node_modules
+/.sass_cache
+
+# os
+.DS_Store
+.db_thumbs
