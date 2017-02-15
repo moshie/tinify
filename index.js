@@ -27,4 +27,31 @@ const compressor = new Compressor(authUrl);
 
 compressor.compress(function (results) {
     log(results);
+    // Replace the local file with the downloaded file
+    // 
+
+
+// var fullPath = path.join(dir, path.basename(url));
+
+// var file = fs.createWriteStream(fullPath);
+// var request = https.get(url, function(response) {
+//      response.pipe(file);
+
+//      if (e < urls.length) {
+//             urlLoop(++e);
+//  }
+
+//   if (urls.length == e && d < chunks.length) {
+//      chunksLoop(++d);
+//   }
+
+//   if (urls.length == e && chunks.length == d && i < files.length) {
+//      // chunks are done
+//      filesLoop(++i);
+//   }
+// });
+//                      }
+
+
+
 });
