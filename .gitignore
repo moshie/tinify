@@ -4,6 +4,8 @@
 # build
 /node_modules
 /.sass_cache
+/src/temp.json
+/src/testing.png
 
 # os
 .DS_Store

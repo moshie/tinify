@@ -23,16 +23,16 @@ class Compressor {
     }
 
     compress() {
-        const directories = dirMapper(cwd);
-        const obj = this;
 
-        return Promise.map(directories, (directory) => {
-            obj.writeToFile(directory.chunk);
+        return Promise.map(dirMapper(cwd), (directory) => {
+            this.writeToFile(directory.chunk);
+
+            log(`processing: ${directory.directory}`);
             
-            return obj.compressScript()
-                .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}))
+            return this.compressScript()
+                .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
         }, {concurrency: 1})
-            .then((dirChunks) => obj.mergeChunks(dirChunks));
+            .then((dirChunks) => this.mergeChunks(dirChunks));
 
     }
 
@@ -60,9 +60,8 @@ class Compressor {
     }
 
     compressScript() {
-        const obj = this;
         return new Promise((resolve, reject) => {
-            shell('casperjs', [`${__dirname}/casperjs-compressor.js`, obj.authUrl], {
+            shell('casperjs', [`${__dirname}/casperjs-compressor.js`, this.authUrl], {
                 cwd: process.cwd()
             }, (error, stdout, stderr) => {
                 if (error) {
@@ -71,16 +70,25 @@ class Compressor {
 
                 var urls = [];
 
-                try {
+                if (this.isJSON(stdout)) {
                     urls.push(JSON.parse(stdout));
-                } catch (e) {
-                    return reject(e);
+                } else {
+                    reject(stdout);
                 }
 
                 return resolve(urls);
             });
 
         });
+    }
+
+    isJSON(data) {
+        try {
+            JSON.parse(data);
+        } catch (e) {
+            return false;
+        }
+        return true;
     }
 
     writeToFile(chunk) {

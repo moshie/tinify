@@ -8,7 +8,7 @@ var files = fs.read(__dirname + fs.separator + 'temp.json');
 var authUrl = casper.cli.args[0];
 var chunkCount = casper.cli.args[1];
 
-casper.options.waitTimeout = 60000;
+casper.options.waitTimeout = 60000; // needs work
 
 casper.userAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X)');
 
@@ -25,7 +25,9 @@ casper.waitFor(function check() {
 }, function then() {
     //this.echo('finished download');
 }, function timeout() { // step to execute if check has failed
-    this.capture(__dirname + '/testing.png');
+    this.capture(__dirname + '/testing.png', {
+        width: 1280
+    });
     console.log('ah no it timed out and we dont know wht did you run out of internet?');
     this.exit();
 });
