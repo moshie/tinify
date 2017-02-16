@@ -25,8 +25,16 @@ program.parse(process.argv);
 
 const compressor = new Compressor(authUrl);
 
-compressor.compress(function (results) {
-    log(results);
+compressor.compress()
+	.then((results) => {
+		log(results);
+	})
+	.catch((err) => {
+		log(err);
+	});
+
+// function (results) {
+//     log(results);
     // Replace the local file with the downloaded file
     // 
 
@@ -54,4 +62,4 @@ compressor.compress(function (results) {
 
 
 
-});
+//});

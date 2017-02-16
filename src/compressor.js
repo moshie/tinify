@@ -1,11 +1,17 @@
-const dirMapper = require('./directory-mapper');
-const fs = require('fs');
-const path = require('path');
-const shell = require('child_process').execFile;
-var StringDecoder = require('string_decoder').StringDecoder;
-const cwd = process.cwd();
+/*!
+ * Compressor
+ */
+
+'use strict';
+
 const log = console.log;
+const fs = require('fs');
+const cwd = process.cwd();
+const path = require('path');
 const Promise = require('bluebird');
+const tempFilePath = __dirname + '/temp.json';
+const shell = require('child_process').execFile;
+const dirMapper = require('./directory-mapper');
 
 class Compressor {
 
@@ -16,99 +22,41 @@ class Compressor {
         this.authUrl = url;
     }
 
-    compress(cb) {
-        const directories = dirMapper(cwd); // Adjust the mapper to the format below
+    compress() {
+        const directories = dirMapper(cwd);
         const obj = this;
 
-        // chunks
-        // [
-        //      {
-        //          directory: '/dwadwadwadwa/wda/a/dwad/',
-        //          chunk: [
-        //              '/feseefses/efsefsfes/efefssef.jpg',
-        //              '/feseefses/efsefsfes/efefssef.jpg',
-        //          ]
-        //      },
-        //      {
-        //          directory: '/dwadwadwadwa/wda/a/dwad/',
-        //          chunk: [
-        //              '/feseefses/efsefsfes/dwadwadawawdfe.jpg',
-        //              '/feseefses/efsefsfes/wdaadwdawwfesf.jpg',
-        //          ]
-        //      },
-        // ]
-
-        let chunks = [];
-
-        directories.forEach((dir) => {
-            dir.files.forEach((chunk) => {
-                chunks.push({
-                    directory,
-                    chunk
-                });
-            });
-        });
-
-        return Promise.map(chunks, (chunk) => { // Loop
-            obj.writeToFile(chunk.chunk);
+        return Promise.map(directories, (directory) => {
+            obj.writeToFile(directory.chunk);
             
             return obj.compressScript()
-                .then((chunkUrls) => {
-
-                    return {
-                        directory: chunk.directory,
-                        urls: chunkUrls
-                    };
-
-                })
+                .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}))
         }, {concurrency: 1})
-            .then((dirChunks) => {
-                obj.removeFile();
+            .then((dirChunks) => obj.mergeChunks(dirChunks));
 
-                // dirChunks
-                // [
-                //      {
-                //          directory: '/dwadwadwadwa/wda/a/dwad/',
-                //          urls: [
-                //              '/feseefses/efsefsfes/efefssef.jpg',
-                //              '/feseefses/efsefsfes/efefssef.jpg',
-                //          ]
-                //      },
-                //      {
-                //          directory: '/dwadwadwadwa/wda/a/dwad/',
-                //          urls: [
-                //              '/feseefses/efsefsfes/dwadwadawawdfe.jpg',
-                //              '/feseefses/efsefsfes/wdaadwdawwfesf.jpg',
-                //          ]
-                //      },
-                // ]
+    }
 
-                // loop through url chunks array then merge the urls where the directories names match so it looks like this:
-                
-                // finalChunks
-                // [
-                //      {
-                //          directory: '/dwadwadwadwa/wda/a/dwad/',
-                //          urls: [
-                //                  [
-                //                      '/feseefses/efsefsfes/efefssef.jpg',
-                //                      '/feseefses/efsefsfes/efefssef.jpg',
-                //                  ],
-                //                  [
-                //                      '/feseefses/efsefsfes/dwadwadawawdfe.jpg',
-                //                      '/feseefses/efsefsfes/wdaadwdawwfesf.jpg',
-                //                  ]
-                //          ]
-                //      }
-                // ]
-                return finalChunks;
-            })
-            // .done  / .complete ?? cb(err, results);
-            .then(cb)
-            .catch((err) => {
-                log(err);
-            });
+    mergeChunks(dirChunks) {
+        this.removeFile();
 
+        var output = [];
+
+        dirChunks.forEach((chunk) => {
+            var existing = output.filter((v, i) => v.directory == chunk.directory);
+
+            if (existing.length) {
+                var existingIndex = output.indexOf(existing[0]);
+                output[existingIndex].urls.push(chunk.urls);
+            } else {
+                output.push({
+                    directory: chunk.directory,
+                    urls: [chunk.urls]
+                });
+            }
+
+        });
+
+        return output;
     }
 
     compressScript() {
@@ -135,22 +83,11 @@ class Compressor {
         });
     }
 
-    isJson(data) {
-        try {
-            JSON.parse(data);
-        } catch (e) {
-            return false;
-        }
-        return true;
-    }
-
     writeToFile(chunk) {
-        const tempFilePath = __dirname + '/temp.json';
         fs.writeFileSync(tempFilePath, JSON.stringify(chunk));
     }
 
     removeFile() {
-        const tempFilePath = __dirname + '/temp.json';
         fs.unlinkSync(tempFilePath);
     }
 
