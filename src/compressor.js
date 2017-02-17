@@ -8,9 +8,7 @@ const log = console.log;
 const fs = require('fs');
 const path = require('path');
 const Promise = require('bluebird');
-
 const shell = require('child_process').execFile;
-
 const writeFile = Promise.promisify(fs.writeFile);
 
 class Compressor {
@@ -18,25 +16,31 @@ class Compressor {
     constructor(url, mapper) {
         this.authUrl = url;
         this.mapper = mapper;
-        this.tempFilePath = __dirname + '/temp.json';
+        this.concurrency = 6;
+    }
+
+    processDirectory(directory, index) {
+        let chunkTempFile = `${__dirname}/temp-${index}.json`;
+
+        log(`processing: ${directory.directory}`); // node-multispinner
+        // Generate GUID then pass into processDirectory
+        // Math.floor(Math.random() * 10000);
+
+        return writeFile(chunkTempFile, JSON.stringify(directory.chunk))
+                .then(() => this.compressChunk(chunkTempFile))
+                .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
+
     }
 
     compress() {
         const directories = this.mapper.build();
+        const concurrency = this.concurrency;
 
         return Promise.map(directories, (directory, index) => {
-            let chunkTempFile = `${__dirname}/temp-${index}.json`;
-
-            log(`processing: ${directory.directory}`);
-
-            return writeFile(chunkTempFile, JSON.stringify(directory.chunk))
-                .then(() => {
-                    return this.compressChunk(chunkTempFile);
-                })
-                .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
-        }, {concurrency: 6})
+            return this.processDirectory(directory, index);
+        }, {concurrency})
             .then((urlChunks) => {
-                this.removeFiles(directories.length);
+                this.removeFiles(directories.length); // Make ASYNC
                 return urlChunks;
             })
             .then((urlChunks) => this.mergeChunks(urlChunks));
@@ -71,6 +75,8 @@ class Compressor {
         return output;
     }
 
+    // SEPERATE OUT TO COMPRESSOR CLASS RENAME THIS CLASS TO RECURRSIVE COMPRESSOR ??? Rethink name
+    // 
     compressChunk(chunkTempFile) {
         return new Promise((resolve, reject) => {
             shell('casperjs', [`${__dirname}/casperjs-compressor.js`, this.authUrl, chunkTempFile], {
