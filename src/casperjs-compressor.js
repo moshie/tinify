@@ -4,9 +4,9 @@ var fs = require('fs');
 var filename = require('system').args[3].split(fs.separator);
 filename.pop();
 var __dirname = filename.join(fs.separator);
-var files = fs.read(__dirname + fs.separator + 'temp.json');
 var authUrl = casper.cli.args[0];
-var chunkCount = casper.cli.args[1];
+var chunkFilePath = casper.cli.args[1];
+var files = fs.read(chunkFilePath);
 
 casper.options.waitTimeout = 60000; // needs work
 

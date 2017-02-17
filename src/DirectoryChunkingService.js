@@ -18,6 +18,7 @@ class DirectoryChunkingService {
         this.directory = directory;
         this.mimeTypes = ['image/jpeg', 'image/png'];
         this.tree = [];
+        this.chunkCount = 15;
     }
 
     /**
@@ -76,7 +77,7 @@ class DirectoryChunkingService {
      */
     chunkDirectories(directory, filePath) {
         const applingDir = this.tree.filter((v, i) => { 
-            return v.directory == directory && v.chunk.length < 10;
+            return v.directory == directory && v.chunk.length < this.chunkCount;
         });
 
         if (!applingDir.length) {

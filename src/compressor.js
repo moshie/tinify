@@ -8,32 +8,45 @@ const log = console.log;
 const fs = require('fs');
 const path = require('path');
 const Promise = require('bluebird');
-const tempFilePath = __dirname + '/temp.json';
+
 const shell = require('child_process').execFile;
+
+const writeFile = Promise.promisify(fs.writeFile);
 
 class Compressor {
 
     constructor(url, mapper) {
         this.authUrl = url;
         this.mapper = mapper;
+        this.tempFilePath = __dirname + '/temp.json';
     }
 
     compress() {
+        const directories = this.mapper.build();
 
-        return Promise.map(this.mapper.build(), (directory) => {
-            this.writeToFile(directory.chunk);
+        return Promise.map(directories, (directory, index) => {
+            let chunkTempFile = `${__dirname}/temp-${index}.json`;
 
             log(`processing: ${directory.directory}`);
-            
-            return this.compressChunk()
+
+            return writeFile(chunkTempFile, JSON.stringify(directory.chunk))
+                .then(() => {
+                    return this.compressChunk(chunkTempFile);
+                })
                 .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
-        }, {concurrency: 1})
+        }, {concurrency: 6})
             .then((urlChunks) => {
-                this.removeFile();
+                this.removeFiles(directories.length);
                 return urlChunks;
             })
             .then((urlChunks) => this.mergeChunks(urlChunks));
 
+    }
+
+    removeFiles(count) {
+        for (var i = count - 1; i >= 0; i--) {
+            fs.unlinkSync(`${__dirname}/temp-${i}.json`);
+        }
     }
 
     mergeChunks(urlChunks) {
@@ -58,9 +71,9 @@ class Compressor {
         return output;
     }
 
-    compressChunk() {
+    compressChunk(chunkTempFile) {
         return new Promise((resolve, reject) => {
-            shell('casperjs', [`${__dirname}/casperjs-compressor.js`, this.authUrl], {
+            shell('casperjs', [`${__dirname}/casperjs-compressor.js`, this.authUrl, chunkTempFile], {
                 cwd: process.cwd()
             }, (error, stdout, stderr) => {
                 if (error) {
@@ -88,14 +101,6 @@ class Compressor {
             return false;
         }
         return true;
-    }
-
-    writeToFile(chunk) {
-        fs.writeFileSync(tempFilePath, JSON.stringify(chunk));
-    }
-
-    removeFile() {
-        fs.unlinkSync(tempFilePath);
     }
 
 }
