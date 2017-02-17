@@ -9,6 +9,8 @@ Array.prototype.search = require('./src/polyfills').search;
 const packageVersion = require('./package.json').version;
 
 const program = require('commander');
+
+const DirectoryChunkingService = require('./src/DirectoryChunkingService');
 const Compressor = require('./src/compressor');
 
 var authUrl;
@@ -23,7 +25,13 @@ program
 
 program.parse(process.argv);
 
-const compressor = new Compressor(authUrl);
+if (!authUrl) {
+    log('Please supply tinify with a valid authentication url');
+    process.exit(1);
+}
+
+const chunker = new DirectoryChunkingService(cwd);
+const compressor = new Compressor(authUrl, chunker);
 
 compressor.compress()
 	.then((results) => {

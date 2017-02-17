@@ -6,25 +6,21 @@
 
 const log = console.log;
 const fs = require('fs');
-const cwd = process.cwd();
 const path = require('path');
 const Promise = require('bluebird');
 const tempFilePath = __dirname + '/temp.json';
 const shell = require('child_process').execFile;
-const dirMapper = require('./directory-mapper');
 
 class Compressor {
 
-    constructor(url) {
-        if (!url) {
-            this.handleAuthFailure();
-        }
+    constructor(url, mapper) {
         this.authUrl = url;
+        this.mapper = mapper;
     }
 
     compress() {
 
-        return Promise.map(dirMapper(cwd), (directory) => {
+        return Promise.map(this.mapper.build(), (directory) => {
             this.writeToFile(directory.chunk);
 
             log(`processing: ${directory.directory}`);
@@ -100,11 +96,6 @@ class Compressor {
 
     removeFile() {
         fs.unlinkSync(tempFilePath);
-    }
-
-    handleAuthFailure() {
-        log('Please supply tinify with a valid authentication url');
-        process.exit(1);
     }
 
 }
