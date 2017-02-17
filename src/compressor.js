@@ -29,19 +29,22 @@ class Compressor {
 
             log(`processing: ${directory.directory}`);
             
-            return this.compressScript()
+            return this.compressChunk()
                 .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
         }, {concurrency: 1})
-            .then((dirChunks) => this.mergeChunks(dirChunks));
+            .then((urlChunks) => {
+                this.removeFile();
+                return urlChunks;
+            })
+            .then((urlChunks) => this.mergeChunks(urlChunks));
 
     }
 
-    mergeChunks(dirChunks) {
-        this.removeFile();
-
+    mergeChunks(urlChunks) {
+        
         var output = [];
 
-        dirChunks.forEach((chunk) => {
+        urlChunks.forEach((chunk) => {
             var existing = output.filter((v, i) => v.directory == chunk.directory);
 
             if (existing.length) {
@@ -59,7 +62,7 @@ class Compressor {
         return output;
     }
 
-    compressScript() {
+    compressChunk() {
         return new Promise((resolve, reject) => {
             shell('casperjs', [`${__dirname}/casperjs-compressor.js`, this.authUrl], {
                 cwd: process.cwd()
@@ -73,7 +76,7 @@ class Compressor {
                 if (this.isJSON(stdout)) {
                     urls.push(JSON.parse(stdout));
                 } else {
-                    reject(stdout);
+                    return reject(stdout);
                 }
 
                 return resolve(urls);
