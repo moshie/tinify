@@ -5,110 +5,91 @@
 'use strict';
 
 const log = console.log;
-const fs = require('fs');
 const path = require('path');
 const Promise = require('bluebird');
 const shell = require('child_process').execFile;
-const writeFile = Promise.promisify(fs.writeFile);
+const fs = Promise.promisifyAll(require('fs'));
 
-class Compressor {
-
-    constructor(url, mapper) {
-        this.authUrl = url;
-        this.mapper = mapper;
-        this.concurrency = 6;
+function isJSON(data) {
+    try {
+        JSON.parse(data);
+    } catch (e) {
+        return false;
     }
+    return true;
+}
 
-    processDirectory(directory, index) {
-        let chunkTempFile = `${__dirname}/temp-${index}.json`;
-
-        log(`processing: ${directory.directory}`); // node-multispinner
-        // Generate GUID then pass into processDirectory
-        // Math.floor(Math.random() * 10000);
-
-        return writeFile(chunkTempFile, JSON.stringify(directory.chunk))
-                .then(() => this.compressChunk(chunkTempFile))
-                .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
-
-    }
-
-    compress() {
-        const directories = this.mapper.build();
-        const concurrency = this.concurrency;
-
-        return Promise.map(directories, (directory, index) => {
-            return this.processDirectory(directory, index);
-        }, {concurrency})
-            .then((urlChunks) => {
-                this.removeFiles(directories.length); // Make ASYNC
-                return urlChunks;
-            })
-            .then((urlChunks) => this.mergeChunks(urlChunks));
-
-    }
-
-    removeFiles(count) {
-        for (var i = count - 1; i >= 0; i--) {
-            fs.unlinkSync(`${__dirname}/temp-${i}.json`);
-        }
-    }
-
-    mergeChunks(urlChunks) {
-        
-        var output = [];
-
-        urlChunks.forEach((chunk) => {
-            var existing = output.filter((v, i) => v.directory == chunk.directory);
-
-            if (existing.length) {
-                var existingIndex = output.indexOf(existing[0]);
-                output[existingIndex].urls.push(chunk.urls);
-            } else {
-                output.push({
-                    directory: chunk.directory,
-                    urls: [chunk.urls]
-                });
+function compressChunk(chunkTempFile, authUrl) {
+    return new Promise((resolve, reject) => {
+        shell('casperjs', [`${__dirname}/casperjs-compressor.js`, authUrl, chunkTempFile], {
+            cwd: process.cwd()
+        }, (error, stdout, stderr) => {
+            if (error) {
+                return reject(error);
             }
 
+            var urls = [];
+
+            if (isJSON(stdout)) {
+                urls = JSON.parse(stdout);
+            } else {
+                return reject(stdout);
+            }
+
+            return resolve(urls);
         });
 
-        return output;
-    }
+    });
+}
 
-    // SEPERATE OUT TO COMPRESSOR CLASS RENAME THIS CLASS TO RECURRSIVE COMPRESSOR ??? Rethink name
-    // 
-    compressChunk(chunkTempFile) {
-        return new Promise((resolve, reject) => {
-            shell('casperjs', [`${__dirname}/casperjs-compressor.js`, this.authUrl, chunkTempFile], {
-                cwd: process.cwd()
-            }, (error, stdout, stderr) => {
-                if (error) {
-                    return reject(error);
-                }
+function processDirectory(directory, authUrl, index) {
+    let chunkTempFile = `${__dirname}/temp-${index}.json`;
 
-                var urls = [];
+    log(`processing: ${directory.directory}`);
 
-                if (this.isJSON(stdout)) {
-                    urls.push(JSON.parse(stdout));
-                } else {
-                    return reject(stdout);
-                }
+    return fs.writeFileAsync(chunkTempFile, JSON.stringify(directory.files))
+            .then(() => compressChunk(chunkTempFile, authUrl))
+            .then((chunkUrls) => {
+                fs.unlinkAsync(chunkTempFile)
+                return chunkUrls;
+            })
+            .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
+}
 
-                return resolve(urls);
+function mergeChunks(urlChunks) {
+    var output = [];
+
+    urlChunks.forEach((chunk) => {
+        var existing = output.filter((v, i) => v.directory == chunk.directory);
+
+        if (existing.length) {
+            var existingIndex = output.indexOf(existing[0]);
+            output[existingIndex].urls.push(chunk.urls);
+        } else {
+            output.push({
+                directory: chunk.directory,
+                urls: [chunk.urls]
             });
-
-        });
-    }
-
-    isJSON(data) {
-        try {
-            JSON.parse(data);
-        } catch (e) {
-            return false;
         }
-        return true;
-    }
+
+    });
+
+    return output;
+}
+
+function compress(directories, authUrl) {
+
+    return Promise.map(directories, (directory, index) => {
+        return processDirectory(directory, authUrl, index);
+    }, {concurrency: 6})
 
 }
 
-module.exports = Compressor;
+module.exports.compressAsync = compress;
+module.exports.compress = function(directories, authUrl, success) {
+    return compress(directories, authUrl)
+        .then(function(result) {
+            success(null, result);
+        })
+        .catch(success);
+};

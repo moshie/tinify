@@ -5,13 +5,16 @@
 const cwd = process.cwd();
 const log = console.log;
 
+const Promise = require('bluebird');
 Array.prototype.search = require('./src/polyfills').search;
 const packageVersion = require('./package.json').version;
 
 const program = require('commander');
 
-const DirectoryChunkingService = require('./src/DirectoryChunkingService');
-const Compressor = require('./src/compressor');
+const path = require('path');
+const fs = require('fs');
+
+const https = Promise.promisifyAll(require('https'));
 
 var authUrl;
 
@@ -30,44 +33,16 @@ if (!authUrl) {
     process.exit(1);
 }
 
-const chunker = new DirectoryChunkingService(cwd);
-const compressor = new Compressor(authUrl, chunker);
-
-compressor.compress()
-	.then((results) => {
-		log(results);
-	})
-	.catch((err) => {
-		log(err);
-	});
-
-// function (results) {
-//     log(results);
-    // Replace the local file with the downloaded file
-    // 
+const {mapdirAsync} = require('./src/directory-mapper');
+const {compressAsync} = require('./src/compressor');
 
 
-// var fullPath = path.join(dir, path.basename(url));
-
-// var file = fs.createWriteStream(fullPath);
-// var request = https.get(url, function(response) {
-//      response.pipe(file);
-
-//      if (e < urls.length) {
-//             urlLoop(++e);
-//  }
-
-//   if (urls.length == e && d < chunks.length) {
-//      chunksLoop(++d);
-//   }
-
-//   if (urls.length == e && chunks.length == d && i < files.length) {
-//      // chunks are done
-//      filesLoop(++i);
-//   }
-// });
-//                      }
-
-
-
-//});
+mapdirAsync(cwd)
+    .then((directories) => compressAsync(directories, authUrl))
+    // Add the replacer
+    .then((result) => {
+        log(result);
+    })
+    .catch((error) => {
+        log(error);
+    });
