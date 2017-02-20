@@ -9,6 +9,7 @@ const path = require('path');
 const Promise = require('bluebird');
 const shell = require('child_process').execFile;
 const fs = Promise.promisifyAll(require('fs'));
+const https = Promise.promisifyAll(require('https'));
 
 function isJSON(data) {
     try {
@@ -42,6 +43,25 @@ function compressChunk(chunkTempFile, authUrl) {
     });
 }
 
+function download(url, dest) {
+    var file = fs.createWriteStream(dest);
+    return new Promise((resolve, reject) => {
+        https.get(url, (response) => {
+            response.pipe(file);
+
+            file.on('finish', () => {
+                file.close(() => {
+                    log(dest + ' replaced successfully');
+                    return resolve();
+                });
+            })
+        }).on('error', function(err) { // Handle errors
+            fs.unlink(dest); // Delete the file async. (But we don't check the result)
+            console.log(err);
+        });
+    });
+}
+
 function processDirectory(directory, authUrl, index) {
     let chunkTempFile = `${__dirname}/temp-${index}.json`;
 
@@ -53,7 +73,13 @@ function processDirectory(directory, authUrl, index) {
                 fs.unlinkAsync(chunkTempFile)
                 return chunkUrls;
             })
-            .then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
+            .then((chunkUrls) => {
+                return Promise.map(chunkUrls, (chunkUrl) => {
+                    var dest = path.resolve(directory.directory, path.basename(chunkUrl));
+                    return download(chunkUrl, dest);
+                });
+            })
+            //.then((chunkUrls) => ({directory: directory.directory, urls: chunkUrls}));
 }
 
 function mergeChunks(urlChunks) {

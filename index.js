@@ -39,9 +39,8 @@ const {compressAsync} = require('./src/compressor');
 
 mapdirAsync(cwd)
     .then((directories) => compressAsync(directories, authUrl))
-    // Add the replacer
     .then((result) => {
-        log(result);
+        //log(result);
     })
     .catch((error) => {
         log(error);
